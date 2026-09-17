@@ -35,7 +35,6 @@ def calc_crc(data: bytes) -> int:
 
     return crc
 
-as_int = functools.partial(int.from_bytes, byteorder="big")
 
 class fineoffset:
     def name(self):
@@ -57,7 +56,7 @@ class fineoffset:
             logger.warning("Got corrupted data, skipping: '%s'", data)
             return None
 
-        vid, temp, hum = int(data[:3], 16), int(data[3:6], 16), int(data[6:8], 16)
+        vid, temp, hum = int(data[:3], 16) && 0xff, int(data[3:6], 16), int(data[6:8], 16)
 
         res = {
             "temperature": (temp & 0x7ff) / (-10.0 if temp & 0x800 else 10.0),

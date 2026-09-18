@@ -58,7 +58,7 @@ $ python3 -m tellmqtt -d /dev/tellstickDuo -h mqtt-server
 
 ## Tested devices (protocols)
 ### Fineoffset
-#### Telldus Termo- and hygrometer
+#### Telldus Thermo- and hygrometer
 Models FT007TH, F007TPH
 
 The following topics are published:
@@ -141,7 +141,7 @@ Follow the telldus power-switch instructions. Note that the doorbell only listen
 commands.
 
 ### Mandolyn
-#### Termo- and hygrometer
+#### Thermo- and hygrometer
 Models ESIC WT450H
 
 The following topics are published:
@@ -169,6 +169,22 @@ where
 `<unit>` is 1 - 16
 
 The value of the topic on input can be either `on` or `off` (case insensitive).
+
+### Oregon
+#### Thermo- and hygrometer
+Model THGN132N 
+
+The following topics are published:
+
+`tellstick/in/oregon/<model>/<channel>/temperature` temperature
+
+`tellstick/in/oregon/<model>/<channel>/humidity` humidity
+
+`tellstick/in/oregon/<model>/<channel>/battery` battery (0 = ok, 1 = low)
+
+`tellstick/in/oregon/<model>/<channel>/json` all data in a json structure (useful if logging to database)
+
+Activate checksum check with environmental variable TELLMQTT_OREGON_CHECKSUM=true. Will work for THGN132N, and it will be reported under its correct model name: 1D20. Without checksum check other models may work, but may be labeled 1A2D by the Tellstick.
 
 
 ## HomeAssistant examples

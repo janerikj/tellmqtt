@@ -6,6 +6,7 @@ from tellmqtt.protocols.fineoffset import fineoffset
 from tellmqtt.protocols.arctech import arctech
 from tellmqtt.protocols.mandolyn import mandolyn
 from tellmqtt.protocols.waveman import waveman
+from tellmqtt.protocols.oregon import oregon
 
 import json
 
@@ -16,6 +17,7 @@ PROTOCOLS = [
     fineoffset(),
     mandolyn(),
     waveman(),
+    oregon()
 ]
 
 class TellstickHandler:

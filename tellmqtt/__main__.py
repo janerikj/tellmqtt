@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 
 from amqtt.client import MQTTClient
 from amqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
@@ -19,11 +20,17 @@ def getopt():
     parser = argparse.ArgumentParser(add_help=False) # no add_help as we want -h for host
     parser.add_argument('--help', action="help", help="Show help message and exit.")
     parser.add_argument('-h', '--host',
-                        dest="mqtthost", default="localhost",
+                        dest="mqtthost", default=os.environ.get('TELLMQTT_HOST', 'localhost'),
                         help="MQTT broker host. Default: %(default)s")
     parser.add_argument('-p', '--port',
-                        dest="mqttport", default=1883,
-                        help="MQTT broker port. Default: %(default)s")
+                        dest="mqttport", type=int, default=int(os.environ.get('TELLMQTT_PORT', '1883')),
+                        help="MQTT broker port. Default: from TELLMQTT_PORT environment variable")
+    parser.add_argument('-u', '--mqtt-user',
+                        dest="mqttuser", default=os.environ.get('TELLMQTT_USER'),
+                        help="MQTT username. Default: from TELLMQTT_USER environment variable")
+    parser.add_argument('-P', '--mqtt-password',
+                        dest="mqttpass", default=os.environ.get('TELLMQTT_PASSWORD'),
+                        help="MQTT password. Default: from TELLMQTT_PASSWORD environment variable")
 
     parser.add_argument('-d', '--device',
                         dest="device", default="/dev/tellstickDuo",
@@ -46,7 +53,11 @@ def mqtt_setup(args):
         'keep_alive': 30,
         'ping_delay': 2,
     })
-    return client, client.connect('mqtt://{}:{}/'.format(args.mqtthost, args.mqttport))
+    if args.mqttuser and args.mqttpass:
+        uri = 'mqtt://{}:{}@{}:{}/'.format(args.mqttuser, args.mqttpass, args.mqtthost, args.mqttport)
+    else:
+        uri = 'mqtt://{}:{}/'.format(args.mqtthost, args.mqttport)
+    return client, client.connect(uri)
 
 async def readproc(serialread, mqttclient, mqtt, stick, ready):
     while True:
@@ -144,7 +155,11 @@ def setup_logging():
         datefmt='[%Y-%m-%dT%H:%M:%S%z]',
         format='%(asctime)s %(levelname)-8s %(name)s: %(message)s',
     )
-    logger.setLevel(logging.INFO)
+    level = os.environ.get('TELLMQTT_LOG_LEVEL', 'INFO').upper()
+    if not hasattr(logging, level):
+        logger.warning('Unknown TELLMQTT_LOG_LEVEL %r, defaulting to INFO', level)
+        level = 'INFO'
+    logger.setLevel(getattr(logging, level))
 
 if __name__ == '__main__':
     setup_logging()

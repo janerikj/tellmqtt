@@ -39,10 +39,9 @@ can use it.
 I recommend using a python virtual environment, with at least python 3.6:
 ```
 $ cd <tellmqtt main directory>
-$ python3 -m virtualenv -p python3 venv
+$ python3 -m venv venv
 $ . venv/bin/activate
-$ pip3 install $(cat requirements.txt)
-$ python3 -m tellmqtt -d /dev/tellstickDuo -h mqtt-server
+$ pip install -r requirements.txt
 ```
 
 ### Running tellmqtt
@@ -65,6 +64,24 @@ running and tries to reopen the device every 5 seconds. The first attempt
 is logged as a warning, further attempts as debug messages, and a message is
 logged when the tellstick is back. Note that commands received from mqtt
 while the tellstick is gone are dropped.
+
+### Environment variables
+Some settings can be set using environment variables. If a command
+line option exists, it takes precedence.
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `TELLMQTT_HOST` | MQTT broker host | `localhost` |
+| `TELLMQTT_PORT` | MQTT broker port | `1883` |
+| `TELLMQTT_USER` | MQTT username | unset |
+| `TELLMQTT_PASSWORD` | MQTT password | unset |
+| `TELLMQTT_LOG_LEVEL` | Log level, e.g. `DEBUG` | `INFO` |
+| `TELLMQTT_OREGON_CHECKSUM` | Validate the Oregon checksum so a THGN132N sensor is reported under its model name `1D20`. Enabled when set to a truthy value (`1`, `true`, `yes`, `on`). When unset, other Oregon models may work but may be labeled `1A2D` by the Tellstick. | unset (off) |
+
+Example:
+```
+$ TELLMQTT_HOST=192.168.1.5 TELLMQTT_OREGON_CHECKSUM=true python3 -m tellmqtt -d /dev/tellstickDuo
+```
 
 ## Tested devices (protocols)
 ### Fineoffset

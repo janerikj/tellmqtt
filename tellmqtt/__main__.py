@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import serial_asyncio
 
 from amqtt.client import MQTTClient
 from amqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
@@ -10,6 +9,7 @@ import tellmqtt.tellstickhandler
 import tellmqtt.mqtthandler
 
 import tellmqtt.fake.serial as fake_serial
+import tellmqtt.serialport
 
 import argparse
 
@@ -32,14 +32,20 @@ def getopt():
     args = parser.parse_args()
     return args
 
-def serial_setup(loop, args):
+def serial_setup(args):
     if args.device != 'fake':
-        return serial_asyncio.open_serial_connection(loop=loop, url=args.device, baudrate=9600)
+        return tellmqtt.serialport.open_serial(args.device, baudrate=9600)
     else:
         return fake_serial.open_serial_connection()
 
-def mqtt_setup(loop, args):
-    client = MQTTClient()
+def mqtt_setup(args):
+    client = MQTTClient(client_id="tellmqtt", config={
+        'auto_reconnect': True,
+        'reconnect_retries': -1,
+        'reconnect_max_interval': 30,
+        'keep_alive': 30,
+        'ping_delay': 2,
+    })
     return client, client.connect('mqtt://{}:{}/'.format(args.mqtthost, args.mqttport))
 
 async def readproc(serialread, mqttclient, mqtt, stick, ready):
@@ -54,52 +60,61 @@ async def readproc(serialread, mqttclient, mqtt, stick, ready):
                 asyncio.ensure_future(mqttclient.publish(path, data)) for (path,data) in outs
             ]
             await asyncio.wait(tasks)
+            for task in tasks:
+                if task.cancelled():
+                    continue
+                exc = task.exception()
+                if exc is not None:
+                    logger.error('publish failed: %r', exc)
         else:
             ready.set()
 
-_PINGED = False
+# in s
+_RECONNECT_POLL_INTERVAL = 1
 
-async def ping(mqttclient):
-    global _PINGED
+async def subscribe_supervisor(mqttclient):
+    reconnected = False
     while True:
-        if not _PINGED:
-            logger.info("Re-subscribe")
-            await mqttclient.subscribe([('tellstick/out/#', QOS_0)])
-            await mqttclient.subscribe([('tellstick/ping', QOS_0)])
-        await asyncio.sleep(30)
-        _PINGED = False
-        await mqttclient.publish("tellstick/ping", b'')
-        await asyncio.sleep(30)
+        await mqttclient._connected_state.wait()
+        if reconnected:
+            logger.info("MQTT reconnected, re-subscribing")
+        else:
+            logger.info("MQTT connected, subscribing")
+        await mqttclient.subscribe([('tellstick/out/#', QOS_0)])
+        reconnected = True
+        while mqttclient._connected_state.is_set():
+            await asyncio.sleep(_RECONNECT_POLL_INTERVAL)
 
 async def writeproc(serialwrite, mqttclient, mqtt, stick, ready):
-    global _PINGED
     while True:
-        message = await mqttclient.deliver_message()
-        packet = message.publish_packet
-        dec = mqtt.decodepost(packet.variable_header.topic_name, packet.payload.data)
-        if dec == 'ping':
-            _PINGED = True
-            continue
-        logger.debug('decoded to {!r}'.format(dec))
-        out = stick.encode(*dec)
-        if out:
-            logger.debug('write {!r}'.format(out))
-            await ready.wait()
-            serialwrite.write(out + b'\n')
-            ready.clear()
-        else:
-            logger.debug('no output')
+        try:
+            message = await mqttclient.deliver_message()
+            packet = message.publish_packet
+            dec = mqtt.decodepost(packet.variable_header.topic_name, packet.payload.data)
+            logger.debug('decoded to {!r}'.format(dec))
+            out = stick.encode(*dec)
+            if out:
+                logger.debug('write {!r}'.format(out))
+                await ready.wait()
+                serialwrite.write(out + b'\n')
+                ready.clear()
+            else:
+                logger.debug('no output')
+        except ConnectionError as e:
+            logger.warning('tellstick not connected, dropping command: %r', e)
+        except Exception as e:
+            logger.error('error handling outgoing message: %r', e)
 
-async def main(loop, opts):
+async def main(opts):
     try:
-        client, co = mqtt_setup(loop, opts)
+        client, co = mqtt_setup(opts)
         await co
     except:
         logger.critical("Error connecting to MQTT broker")
         return
 
     try:
-        r,w = await serial_setup(loop, opts)
+        r,w = await serial_setup(opts)
     except Exception as e:
         logger.critical("Error opening tellstick device: {!r}".format(e))
         await client.disconnect()
@@ -113,13 +128,15 @@ async def main(loop, opts):
     ackevent = asyncio.Event()
     ackevent.set()
 
-    await asyncio.gather(
-        readproc(r, client, mqtthandler, stickhandler, ackevent),
-        writeproc(w, client, mqtthandler, stickhandler, ackevent),
-        ping(client),
-    )
-
-    await client.disconnect()
+    try:
+        await asyncio.gather(
+            readproc(r, client, mqtthandler, stickhandler, ackevent),
+            writeproc(w, client, mqtthandler, stickhandler, ackevent),
+            subscribe_supervisor(client),
+        )
+    finally:
+        await r.close()
+        await client.disconnect()
 
 def setup_logging():
     logging.disable(logging.NOTSET)
@@ -133,6 +150,4 @@ if __name__ == '__main__':
     setup_logging()
     opts = getopt()
     logger.debug("starting")
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(loop, opts))
-    loop.close()
+    asyncio.run(main(opts))

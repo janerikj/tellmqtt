@@ -56,6 +56,16 @@ $ python3 -m tellmqtt -d /dev/tellstickDuo -h mqtt-server
 
 **NB!** Please do not run tellmqtt as root!
 
+### Tellstick connection
+The tellstick has to be present when tellmqtt starts, otherwise tellmqtt
+exits with an error.
+
+If the tellstick is unplugged while tellmqtt is running, tellmqtt keeps
+running and tries to reopen the device every 5 seconds. The first attempt
+is logged as a warning, further attempts as debug messages, and a message is
+logged when the tellstick is back. Note that commands received from mqtt
+while the tellstick is gone are dropped.
+
 ## Tested devices (protocols)
 ### Fineoffset
 #### Telldus Thermo- and hygrometer

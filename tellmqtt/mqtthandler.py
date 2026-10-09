@@ -12,8 +12,6 @@ class MqttHandler:
 
     def decodepost(self, topic, payloadba):
         fullpath = tuple(topic.split('/'))
-        if len(fullpath) > 1 and fullpath[1] == 'ping':
-            return 'ping'
         # assume first is ('tellstick','out') for now
         protocol = fullpath[2]
         arguments = fullpath[3:-1]

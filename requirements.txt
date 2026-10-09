@@ -1,4 +1,2 @@
-aMQTT
-logger
-pyserial_asyncio
-Cython<3.0
+amqtt
+pyserial

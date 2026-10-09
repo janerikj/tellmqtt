@@ -77,7 +77,7 @@ class TellstickHandler:
             try:
                 return self.encoders[protocol].encode(protoargs, command, value)
             except Exception as e:
-                logger.critical(repr(e))
+                logger.error(repr(e))
                 return None
         else:
             logger.warning('no encoder for protocol {}'.format(protocol))

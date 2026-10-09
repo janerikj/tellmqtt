@@ -77,6 +77,7 @@ line option exists, it takes precedence.
 | `TELLMQTT_PASSWORD` | MQTT password | unset |
 | `TELLMQTT_LOG_LEVEL` | Log level, e.g. `DEBUG` | `INFO` |
 | `TELLMQTT_OREGON_CHECKSUM` | Validate the Oregon checksum so a THGN132N sensor is reported under its model name `1D20`. Enabled when set to a truthy value (`1`, `true`, `yes`, `on`). When unset, other Oregon models may work but may be labeled `1A2D` by the Tellstick. | unset (off) |
+| `TELLMQTT_DEDUP_WINDOW_MS` | Suppress repeated identical decoded output arriving within this time window (in milliseconds), e.g. `500`. Sensors often repeat a transmission; only the first identical result within the window is published. `0` or unset disables the filter. | unset (off) |
 
 Example:
 ```

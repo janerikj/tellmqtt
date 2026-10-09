@@ -1,6 +1,8 @@
 import logging
 import asyncio
 import os
+import time
+from collections import deque
 
 from amqtt.client import MQTTClient
 from amqtt.mqtt.constants import QOS_0, QOS_1, QOS_2
@@ -59,12 +61,47 @@ def mqtt_setup(args):
         uri = 'mqtt://{}:{}/'.format(args.mqtthost, args.mqttport)
     return client, client.connect(uri)
 
+# in ms; 0 disables duplicate suppression
+DEDUP_WINDOW_MS = int(os.environ.get('TELLMQTT_DEDUP_WINDOW_MS', '0'))
+
+
+class DuplicateFilter:
+    """Suppress identical outputs arriving within a short time window.
+
+    Sensors often repeat a transmission; only the first identical result
+    within the window is published. Repeats may differ at the raw line level
+    (e.g. unused bits), so deduplication happens on key, which in the caller
+    is the tuple of (topic, payload) to be published. Entries older than the
+    window are forgotten.
+    """
+
+    def __init__(self, window_ms=0):
+        self.window_s = window_ms / 1000 if window_ms > 0 else 0
+        self._recent = deque()
+
+    def suppress(self, key):
+        if self.window_s <= 0:
+            return False
+        now = time.monotonic()
+        while self._recent and now - self._recent[0][0] > self.window_s:
+            self._recent.popleft()
+        for ts, seen in self._recent:
+            if seen == key:
+                return True
+        self._recent.append((now, key))
+        return False
+
+
 async def readproc(serialread, mqttclient, mqtt, stick, ready):
+    duplicate_filter = DuplicateFilter(DEDUP_WINDOW_MS)
     while True:
         rawline = await serialread.readline()
         ret = stick.decode(rawline)
         if ret:
             outs = mqtt.createpost(ret)
+            if duplicate_filter.suppress(tuple(outs)):
+                logger.debug('duplicate output suppressed')
+                continue
             for (path,data) in outs:
                 logger.debug("{!r} -> {!r}".format(path,data))
             tasks = [

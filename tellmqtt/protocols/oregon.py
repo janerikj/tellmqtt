@@ -8,12 +8,14 @@ With TELLMQTT_OREGON_CHECKSUM set, the checksum is calculated and used to
 detect whether a reported 0x1A2D really is a 1D20. If the variable is not
 set, tellmqtt runs in telldus-compatible mode: the model reported by the
 Tellstick is used as-is, which allows more models to work.
+
+The topic is tellstick/in/oregon/<channel>/<model>, the channel first to
+match the other protocols.
 """
 
 import logging
-import os
 
-from tellmqtt.common import protocoldata as pd
+from tellmqtt.common import env_flag, protocoldata as pd
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ class oregon:
         is not set, the model the Tellstick reports is used as-is
         (telldus-compatible mode).
         """
-        return os.getenv("TELLMQTT_OREGON_CHECKSUM", "").strip().lower() not in ("", "0", "false", "no", "off")
+        return env_flag("TELLMQTT_OREGON_CHECKSUM")
 
     @staticmethod
     def check_checksum(data: str, model: str) -> bool:
@@ -110,4 +112,4 @@ class oregon:
         vals['humidity'] = float(humidity)
         vals['battery'] = battery
 
-        return pd((model, channel), vals)
+        return pd((channel, model), vals)

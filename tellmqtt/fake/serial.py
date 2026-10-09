@@ -11,7 +11,9 @@ def open_serial_connection():
                 b'+Wclass:sensor;protocol:fineoffset;data:4970D82884;\r\n',
                 b'+Wclass:sensor;protocol:fineoffset;data:49881FFFBB;\r\n',
                 b'+Wclass:sensor;protocol:fineoffset;data:49801AFF9E;\r\n',
-                b'+Wprotocol:arctech;model:selflearning;data:0x8C42D49E;\r\n'
+                b'+Wprotocol:arctech;model:selflearning;data:0x8C42D49E;\r\n',
+                b'+Wclass:sensor;protocol:oregon;model:0x1A2D;data:405F741310063EAA;\r\n',
+                b'+Wclass:sensor;protocol:mandolyn;model:temperaturehumidity;data:0x5B323FC9;\r\n'
 
             ]
             async def readline(self):

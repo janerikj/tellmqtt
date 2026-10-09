@@ -78,6 +78,7 @@ line option exists, it takes precedence.
 | `TELLMQTT_LOG_LEVEL` | Log level, e.g. `DEBUG` | `INFO` |
 | `TELLMQTT_OREGON_CHECKSUM` | Validate the Oregon checksum so a THGN132N sensor is reported under its model name `1D20`. Enabled when set to a truthy value (`1`, `true`, `yes`, `on`). When unset, other Oregon models may work but may be labeled `1A2D` by the Tellstick. | unset (off) |
 | `TELLMQTT_DEDUP_WINDOW_MS` | Suppress repeated identical decoded output arriving within this time window (in milliseconds), e.g. `500`. Sensors often repeat a transmission; only the first identical result within the window is published. `0` or unset disables the filter. | unset (off) |
+| `TELLMQTT_FINEOFFSET_CHANNEL_IN_TOPIC` | Add the channel and probe levels to the fineoffset topic, see [Fineoffset](#fineoffset). Enabled when set to a truthy value (`1`, `true`, `yes`, `on`). | unset (off) |
 
 Example:
 ```
@@ -85,23 +86,54 @@ $ TELLMQTT_HOST=192.168.1.5 TELLMQTT_OREGON_CHECKSUM=true python3 -m tellmqtt -d
 ```
 
 ## Tested devices (protocols)
+Where a protocol has a channel, it comes first in the topic, followed by the
+level identifying the sensor: the model (oregon), the probe (fineoffset) or
+the house (mandolyn). Arctech and waveman have no channel and use house and
+unit.
+
 ### Fineoffset
 #### Telldus Thermo- and hygrometer
 Models FT007TH, F007TPH
 
 The following topics are published:
 
-`tellstick/in/fineoffset/<channel>/temperature` temperature
+`tellstick/in/fineoffset/<id>/temperature` temperature
 
-`tellstick/in/fineoffset/<channel>/humidity` humidity (if applicable)
+`tellstick/in/fineoffset/<id>/humidity` humidity (if applicable)
 
-`tellstick/in/fineoffset/<channel>/json` all data in a json structure (useful if logging to database)
+`tellstick/in/fineoffset/<id>/json` all data in a json structure (useful if logging to database)
 
-The termo-/hygrometers have dipswitches to set the channel 1-8
+The termo-/hygrometers have dipswitches to set the channel 1-8. The id they
+report holds the channel + 7 in its high nibble and the probe in its low
+nibble, 7 for the internal and 8 for the external one, so the ids of the two
+probes interleave, from 135/136 on channel 1 to 247/248 on channel 8. For the
+combined sensor (F007TPH) the external temperature is a separate sensor
+reporting its own id on the same channel, and it has no humidity.
 
-The protocol-level channel is calculated as the set number * 16 + 119. So channel 1 becomes 135, channel 2 151 and so on.
+So `<id>` is not the channel the sensor is set to. The ids we have seen are
+151/152 (channel 2), 231 (channel 7, internal) and 247/248 (channel 8).
 
-For the combined indoor/outdoor sensor (F007TPH) the outdoor temperature is on channel 120 + ch * 16 (no humidity for outdoor).
+#### Channel and probe levels in the topic
+The topics above have one level too few, and that level is an id rather than
+the channel. With `TELLMQTT_FINEOFFSET_CHANNEL_IN_TOPIC` set, the channel and
+probe levels are added:
+
+`tellstick/in/fineoffset/<channel>/<probe>/temperature` temperature
+
+`tellstick/in/fineoffset/<channel>/<probe>/humidity` humidity (internal only)
+
+`tellstick/in/fineoffset/<channel>/<probe>/json` all data in a json structure
+
+`<probe>` is `intern` or `extern`. Both levels are needed, since the probes
+of an F007TPH report different ids on the same channel. The internal probe on
+channel 8 is published as `tellstick/in/fineoffset/8/intern/temperature` and
+its external probe as `tellstick/in/fineoffset/8/extern/temperature`.
+
+An id that is not one of those listed above, so not a channel 1-8 sensor, is
+published as the only level as before, and logged as a warning.
+
+Note that enabling this changes the topics, so any subscriber has to be
+updated.
 
 ### Arctech 
 #### Arctech self-learning
@@ -204,36 +236,43 @@ Model THGN132N
 
 The following topics are published:
 
-`tellstick/in/oregon/<model>/<channel>/temperature` temperature
+`tellstick/in/oregon/<channel>/<model>/temperature` temperature
 
-`tellstick/in/oregon/<model>/<channel>/humidity` humidity
+`tellstick/in/oregon/<channel>/<model>/humidity` humidity
 
-`tellstick/in/oregon/<model>/<channel>/battery` battery (0 = ok, 1 = low)
+`tellstick/in/oregon/<channel>/<model>/battery` battery (0 = ok, 1 = low)
 
-`tellstick/in/oregon/<model>/<channel>/json` all data in a json structure (useful if logging to database)
+`tellstick/in/oregon/<channel>/<model>/json` all data in a json structure (useful if logging to database)
 
-Activate checksum check with environmental variable TELLMQTT_OREGON_CHECKSUM=true. Will work for THGN132N, and it will be reported under its correct model name: 1D20. Without checksum check other models may work, but may be labeled 1A2D by the Tellstick.
+The checksum check is controlled by the `TELLMQTT_OREGON_CHECKSUM`
+environment variable, see [Environment variables](#environment-variables).
 
 
 ## HomeAssistant examples
 Here are examples on how to use tellmqtt with HomeAssistant and its mqtt-support.
-### Indoor/outdoor temperature/humidity sensor
-Sensor with ID set to 2:
+### Internal/external temperature/humidity sensor
+Sensor with ID set to 2, meaning the internal probe reports 151 and the
+external one 152. The topics assume that
+`TELLMQTT_FINEOFFSET_CHANNEL_IN_TOPIC` is not set, see
+[Fineoffset](#fineoffset). With it set, the topics are
+`tellstick/in/fineoffset/2/intern/temperature`,
+`tellstick/in/fineoffset/2/intern/humidity` and
+`tellstick/in/fineoffset/2/extern/temperature`.
 ```yaml
 sensor:
   - platform: mqtt
     state_topic: "tellstick/in/fineoffset/151/temperature"
-    name: "Indoor temperature"
+    name: "Internal temperature"
     device_class: "temperature"
     unit_of_measurement: '°C'
   - platform: mqtt
     state_topic: "tellstick/in/fineoffset/151/humidity"
-    name: "Indoor humidity"
+    name: "Internal humidity"
     device_class: "humidity"
     unit_of_measurement: '%'
   - platform: mqtt
     state_topic: "tellstick/in/fineoffset/152/temperature"
-    name: "Outdoor temperature"
+    name: "External temperature"
     device_class: "temperature"
     unit_of_measurement: '°C'
 ```

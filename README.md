@@ -36,7 +36,7 @@ which can be used to do this automatically, it also creates a symlink
 can use it.
 
 ### Software setup
-I recommend using a python virtual environment, with at least python 3.6:
+I recommend using a python virtual environment, with at least python 3.10:
 ```
 $ cd <tellmqtt main directory>
 $ python3 -m venv venv
